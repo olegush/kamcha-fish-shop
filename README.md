@@ -35,6 +35,7 @@ REDIS_PWD=redis_pwd
 
 Run **main.py** and test your e-shop in Telegram.
 
+![kamcha-fish-shop screenshot](screenshots/kamcha-fish-shop.png)
 
 ## How to deploy
 

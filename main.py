@@ -246,9 +246,9 @@ def handle_users_reply(bot, update):
 
 if __name__ == '__main__':
     load_dotenv()
-    telegram_telegram = os.getenv('TELEGRAM_TOKEN')
-    moltin_client_id = os.getenv('MOLTIN_CLIENT_ID')
-    moltin_client_secret = os.getenv('MOLTIN_CLIENT_SECRET')
+    telegram_telegram = os.environ.get('TELEGRAM_TOKEN')
+    moltin_client_id = os.environ.get('MOLTIN_CLIENT_ID')
+    moltin_client_secret = os.environ.get('MOLTIN_CLIENT_SECRET')
     token_moltin = get_moltin_token(moltin_client_id, moltin_client_secret)
     headers = get_headers(token_moltin)
     updater = Updater(telegram_telegram)

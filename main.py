@@ -3,6 +3,7 @@ import os
 import logging
 import redis
 import requests
+from requests.exceptions import HTTPError, ConnectionError
 
 from telegram.ext import Filters, Updater
 from telegram.ext import CallbackQueryHandler, CommandHandler, MessageHandler
@@ -13,6 +14,7 @@ MOLTIN_API_URL = 'https://api.moltin.com/v2'
 MOLTIN_API_OAUTH_URL = 'https://api.moltin.com/oauth/access_token'
 MOLTIN_ERR_MSG = 'Moltin API returns error:'
 TELEGRAM_ERR_MSG = 'Telegram API returns error:'
+
 
 class MoltinError(Exception):
     def __init__(self, message):
@@ -30,20 +32,27 @@ def error_callback(bot, update, error):
         logging.critical(f'{TELEGRAM_ERR_MSG} {e}')
 
 
+def check_resp_json(resp):
+    if 'errors' in resp.json():
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
+
+
 def get_headers(moltin_client_id, moltin_client_secret):
     data = {'client_id': str(moltin_client_id),
             'client_secret': str(moltin_client_secret),
             'grant_type': 'client_credentials'}
     try:
         resp = requests.post(MOLTIN_API_OAUTH_URL, data=data)
-        if 'errors' in resp.json():
-            raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
+        resp.raise_for_status()
+        check_resp_json(resp)
         moltin_token = resp.json()['access_token']
         return {
             'Authorization': 'Bearer {}'.format(moltin_token),
             'Content-Type': 'application/json'
         }
-    except requests.exceptions.ConnectionError as e:
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
+    except ConnectionError as e:
         raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
@@ -59,37 +68,46 @@ def get_database_connection():
 
 def get_products():
     global headers
-    resp = requests.get(f'{MOLTIN_API_URL}/products', headers=headers)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    products = resp.json()['data']
-    return  {product['id']:product['name'] for product in products}
+    try:
+        resp = requests.get(f'{MOLTIN_API_URL}/products', headers=headers)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        products = resp.json()['data']
+        return {product['id']: product['name'] for product in products}
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def get_product(product_id):
     global headers
-    resp = requests.get(f'{MOLTIN_API_URL}/products/{product_id}', headers=headers)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    product = resp.json()['data']
-    name = product['name']
-    description = product['description']
-    price = product['meta']['display_price']['with_tax']['formatted']
-    stock = product['meta']['stock']['level']
-    id_img = product['relationships']['main_image']['data']['id']
-    resp_img = requests.get(f'{MOLTIN_API_URL}/files/{id_img}', headers=headers)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    href_img = resp_img.json()['data']['link']['href']
-    return name, description, price, stock, href_img
+    try:
+        resp = requests.get(f'{MOLTIN_API_URL}/products/{product_id}', headers=headers)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        product = resp.json()['data']
+        name = product['name']
+        description = product['description']
+        price = product['meta']['display_price']['with_tax']['formatted']
+        stock = product['meta']['stock']['level']
+        id_img = product['relationships']['main_image']['data']['id']
+        resp_img = requests.get(f'{MOLTIN_API_URL}/files/{id_img}', headers=headers)
+        resp_img.raise_for_status()
+        check_resp_json(resp_img)
+        href_img = resp_img.json()['data']['link']['href']
+        return name, description, price, stock, href_img
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def get_cart(cart_id):
     global headers
-    resp = requests.get(f'{MOLTIN_API_URL}/carts/{cart_id}/items', headers=headers)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    return resp.json()
+    try:
+        resp = requests.get(f'{MOLTIN_API_URL}/carts/{cart_id}/items', headers=headers)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        return resp.json()
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def add_to_cart(cart_id, product_id, quantity):
@@ -101,18 +119,24 @@ def add_to_cart(cart_id, product_id, quantity):
             'quantity': quantity
         }
     }
-    resp = requests.post(f'{MOLTIN_API_URL}/carts/{cart_id}/items', headers=headers, json=data)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    return resp.json()
+    try:
+        resp = requests.post(f'{MOLTIN_API_URL}/carts/{cart_id}/items', headers=headers, json=data)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        return resp.json()
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def delete_from_cart(cart_id, item_id):
     global headers
-    resp = requests.delete(f'{MOLTIN_API_URL}/carts/{cart_id}/items/{item_id}', headers=headers)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    return resp.json()
+    try:
+        resp = requests.delete(f'{MOLTIN_API_URL}/carts/{cart_id}/items/{item_id}', headers=headers)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        return resp.json()
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def create_customer(chat_id, email):
@@ -124,18 +148,24 @@ def create_customer(chat_id, email):
             'email': email
         }
     }
-    resp = requests.post(f'{MOLTIN_API_URL}/customers', headers=headers, json=data)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    return resp.json()
+    try:
+        resp = requests.post(f'{MOLTIN_API_URL}/customers', headers=headers, json=data)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        return resp.json()
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def get_customer(customer_id):
     global headers
-    resp = requests.get(f'{MOLTIN_API_URL}/customers/{customer_id}', headers=headers)
-    if 'errors' in resp.json():
-        raise MoltinError(f'{MOLTIN_ERR_MSG} {resp.json()}')
-    return resp.json()
+    try:
+        resp = requests.get(f'{MOLTIN_API_URL}/customers/{customer_id}', headers=headers)
+        resp.raise_for_status()
+        check_resp_json(resp)
+        return resp.json()
+    except HTTPError as e:
+        raise MoltinError(f'{MOLTIN_ERR_MSG} {e}')
 
 
 def get_query_data(update):
@@ -159,11 +189,9 @@ def display_menu(bot, chat_id):
 
 
 def display_cart(bot, cart, chat_id):
-    products = '\n'.join((f"{product['name']}: {product['quantity']} kg for {product['meta']['display_price']['with_tax']['value']['formatted']}"
-                            for product in cart['data']))
+    products = '\n'.join((f"{product['name']}: {product['quantity']} kg for {product['meta']['display_price']['with_tax']['value']['formatted']}" for product in cart['data']))
     total = cart['meta']['display_price']['with_tax']['formatted']
-    keyboard = [[InlineKeyboardButton(f"Delete {product['name']}", callback_data=product['id'])]
-                for product in cart['data']]
+    keyboard = [[InlineKeyboardButton(f"Delete {product['name']}", callback_data=product['id'])] for product in cart['data']]
     keyboard.append([InlineKeyboardButton('Main menu', callback_data='goto_menu')])
     keyboard.append([InlineKeyboardButton('Order now', callback_data='goto_contacts')])
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -273,10 +301,9 @@ def handle_users_reply(bot, update):
         next_state = state_handler(bot, update)
         database.set(chat_id, next_state)
     except MoltinError as e:
-        raise e
+        logging.critical(e)
     except Exception as e:
         raise e
-
 
 
 def main(telegram_token, moltin_client_id, moltin_client_secret):
@@ -292,8 +319,6 @@ def main(telegram_token, moltin_client_id, moltin_client_secret):
         dispatcher.add_handler(CommandHandler('start', handle_users_reply))
         dispatcher.add_error_handler(error_callback)
         updater.start_polling(clean=True)
-    except MoltinError as e:
-        logging.critical(e)
     except Exception as e:
         logging.critical(e)
 

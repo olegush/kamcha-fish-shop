@@ -25,7 +25,7 @@ python3 -m pip install -r requirements.txt
 MOLTIN_CLIENT_ID=moltin_client_id
 MOLTIN_CLIENT_SECRET=moltin_client_secret
 TELEGRAM_TOKEN=telegram_telegram
-TELEGRAM_CHAT_ID_ADMIN=743244671
+TELEGRAM_CHAT_ID_ADMIN=telegram_chat_id_admin
 REDIS_HOST=redis_host
 REDIS_PORT=redis_port
 REDIS_PWD=redis_pwd
